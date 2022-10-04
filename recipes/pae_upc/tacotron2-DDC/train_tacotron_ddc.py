@@ -15,7 +15,7 @@ output_path = os.path.dirname(os.path.abspath(__file__))
 # init configs
 database_root = '/home/user/PAE-YOV/databases/'
 dataset_config = BaseDatasetConfig(
-    formatter="pae_upc", meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female')
+    formatter="pae_upc", meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female_normalized')
 )
 
 audio_config = BaseAudioConfig(
@@ -36,8 +36,8 @@ config = Tacotron2Config(
     audio=audio_config,
     batch_size=64,
     eval_batch_size=16,
-    num_loader_workers=4,
-    num_eval_loader_workers=4,
+    num_loader_workers=3,
+    num_eval_loader_workers=3,
     run_eval=True,
     test_delay_epochs=-1,
     r=6,
@@ -48,7 +48,7 @@ config = Tacotron2Config(
     use_phonemes=True,
     phoneme_language="ca",
     phoneme_cache_path=os.path.join(output_path, "phoneme_cache"),
-    precompute_num_workers=8,
+    precompute_num_workers=6,
     print_step=25,
     print_eval=True,
     mixed_precision=False,
