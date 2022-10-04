@@ -10,24 +10,12 @@ from TTS.tts.models.tacotron2 import Tacotron2
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio import AudioProcessor
 
-def formatter(root_path, meta_file, **kwargs):
-    txt_file = os.path.join(root_path, meta_file)
-    items = []
-    speaker_name = "pae_upc"
-    with open(txt_file, "r", encoding="utf-8") as ttf:
-        for line in ttf:
-            cols = line.split("|")
-            wav_file = os.path.join(root_path, cols[0] + ".wav")
-            text = cols[1]
-            items.append({"text": text, "audio_file": wav_file, "speaker_name": speaker_name, "root_path": root_path})
-    return items
-
 output_path = os.path.dirname(os.path.abspath(__file__))
 
 # init configs
 database_root = '/home/user/PAE-YOV/databases/'
 dataset_config = BaseDatasetConfig(
-    meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female')
+    formatter="pae_upc", meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female')
 )
 
 audio_config = BaseAudioConfig(
@@ -68,6 +56,9 @@ config = Tacotron2Config(
     datasets=[dataset_config],
 )
 
+# init audio processor
+ap = AudioProcessor(**config.audio.to_dict())
+
 # INITIALIZE THE AUDIO PROCESSOR
 # Audio processor is used for feature extraction and audio I/O.
 # It mainly serves to the dataloader and the training loggers.
@@ -88,7 +79,6 @@ train_samples, eval_samples = load_tts_samples(
     eval_split=True,
     eval_split_max_size=config.eval_split_max_size,
     eval_split_size=config.eval_split_size,
-    formatter=formatter
 )
 
 # INITIALIZE THE MODEL
