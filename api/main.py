@@ -1,9 +1,9 @@
-import io
 import os
 import tempfile
 from datetime import datetime
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -35,6 +35,14 @@ models_list = [
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 async def root():
@@ -46,7 +54,7 @@ async def get_all_models():
     return models_list
 
 
-@app.get("/tts")
+@app.post("/tts")
 async def get_tts_audio(tts: TTSModel):
     print(" > Dataset: {}".format(tts.dataset))
     print(" > Language: {}".format(tts.language))
