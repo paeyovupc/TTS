@@ -1,0 +1,6 @@
+# Phoneme cache
+phoneme-cache/
+
+# Training folders with models and configs
+run*/
+
