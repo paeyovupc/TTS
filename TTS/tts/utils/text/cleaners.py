@@ -24,8 +24,10 @@ def expand_abbreviations(text, lang="en"):
         _abbreviations = abbreviations_fr
     elif lang == "ca":
         _abbreviations = abbreviations_ca
-    for regex, replacement in _abbreviations:
-        text = re.sub(regex, replacement, text)
+    words = text.split()
+	for k in words:
+	    for regex, replacement in _abbreviations:
+        	text = re.sub(regex, replacement,k)
     return text
 
 
