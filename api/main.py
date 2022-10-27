@@ -1,10 +1,14 @@
 import os
+import io
+import json
 import tempfile
 from datetime import datetime
+import zipfile
+import aiofiles
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from TTS.utils.manage import ModelManager
@@ -25,6 +29,9 @@ speakers_file_path = None
 vocoder_path = None
 vocoder_config_path = None
 
+users_config_path = os.path.dirname(__file__).replace('.', 'users_config.json')
+users_path = os.path.dirname(__file__).split('api')[0].replace("TTS", "users")
+databases_path = os.path.dirname(__file__).split('api')[0].replace("TTS", "databases")
 models_config_path = os.path.join(os.path.dirname(__file__).replace("api", "TTS"), ".models.json")
 manager = ModelManager(models_config_path)
 models_list = [
@@ -46,6 +53,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
+    # TODO: login!
     return {"message": "Hello World"}
 
 
@@ -80,8 +88,64 @@ async def get_tts_audio(tts: TTSModel):
         use_cuda=False,
     )
 
+    # synthesize text
     wavs = synthesizer.tts(tts.text)
     tmp_dir = tempfile._get_default_tempdir()
     output_path = os.path.join(tmp_dir, datetime.now().strftime("tts_%m_%d_%Y_%H_%M_%S.wav"))
     synthesizer.save_wav(wavs, output_path)
     return FileResponse(output_path)
+
+
+def zip_files(db_name: str):
+    db_path = os.path.join(databases_path, db_name)
+    zip_filename = "{}.zip".format(db_name)
+    s = io.BytesIO()
+    zf = zipfile.ZipFile(s, "w")
+
+    #Create folder inside zip
+    zf.write(db_path, db_name)
+
+    # Iterate over all the files in directory
+    for folderName, subfolders, filenames in os.walk(db_path):
+        for filename in filenames:
+           filePath = os.path.join(folderName, filename)
+           zf.write(filePath, os.path.join(db_name, filename))
+    zf.close()
+
+    # Grab ZIP file from in-memory, make response with correct MIME-type
+    resp = Response(s.getvalue(), media_type="application/zip", headers={
+        'Content-Disposition': f'attachment;filename={zip_filename}'
+    })
+
+    return resp
+
+async def unzip_files(file: UploadFile, user_name: str):
+    db_name = file.filename.split('.')[0]
+    zip_path = os.path.join(users_path, user_name, file.filename)
+    db_path = os.path.join(users_path, user_name, db_name)
+
+    # Async writing zip file to disk 
+    async with aiofiles.open(zip_path, 'wb') as out_file:
+        content = await file.read()  # async read
+        await out_file.write(content)  # async write
+
+    # Unzip files and delete zip
+    zip = zipfile.ZipFile(zip_path)
+    zip.extractall(db_path)
+    zip.close()
+    os.remove(zip_path)
+    
+    # Create symlink /users/user_name/db_name <--> /databases/db_name
+    os.symlink(db_path, os.path.join(databases_path, db_name))
+    
+
+@app.post("/get-database")
+async def get_helena_database(name: str):
+    print(name)
+    return zip_files(name)
+    
+@app.post("/new-db-multispeaker")
+async def new_db_multispeaker(file: UploadFile = File(), user: str = Form()):
+    await unzip_files(file, user)
+    return {'message': 'Database created!'}
+    

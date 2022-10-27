@@ -171,3 +171,6 @@ internal/*
 wandb
 depot/*
 coqui_recipes/*
+
+# API Users config
+api/users_config.json
