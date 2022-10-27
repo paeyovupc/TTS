@@ -25,17 +25,18 @@ def expand_abbreviations(text, lang="en"):
     elif lang == "ca":
         _abbreviations = abbreviations_ca
     words = text.split()
+    out_text = []
     for k in words:
         for regex, replacement in _abbreviations:
             text = re.sub(regex, replacement, k)
             
-            if text is not k:
+            if text != k:
                 # An abbreviation has been substituted, go to next word
                 break
 
-            k = text
+        out_text.append(text)
 
-    return text
+    return ' '.join(out_text)
 
 
 def lowercase(text):
