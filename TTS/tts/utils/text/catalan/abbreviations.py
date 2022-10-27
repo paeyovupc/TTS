@@ -95,28 +95,26 @@ abbreviations_ca = [
         ("€", "euro"),
 
         # Acronyms
-        ("IBM", "i b m"),
-        ("LG", "l g"),
-        ("LGTB", "l g t b"),
-        ("SA", "s a"),
-        ("FBI", "f b i"),
+        ("IBM", "i be ema"),
+        ("LG", "ela ge"),
+        ("LGTB", "ela ge te be"),
+        ("SA", "esa a"),
+        ("FBI", "efa be i"),
         ("PIME", "pime"),
-        ("UPC", "u p c"),
+        ("UPC", "u pe ce"),
         ("EUA", "Estats units d'America"),
-        ("UPC", "u p c"),
-        ("DNI", "d n i"),
-        ("ADN", "a d n"),
+        ("DNI", "de ena i"),
+        ("ADN", "a de ena"),
         ("OTAN", "otan"),
-        ("UAB", "u a b"),
+        ("UAB", "u a be"),
         ("AVE", "ave"),
         ("AMPA", "ampa"),
-        ("CD", "c d"),
-        ("IBM", "i b m"),
+        ("CD", "ce de"),
         ("ESO", "eso"),
-        ("HD", "h d"),
+        ("HD", "hac de"),
         ("ONU", "onu"),
         ("TV", "Televisió"),
-        ("CPU", "c p u")
+        ("CPU", "ce pe u")
     ]
 ] + [
     (re.compile("\\b%s\\." % x[0]), x[1])
