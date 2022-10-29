@@ -20,7 +20,7 @@ abbreviations_ca = [
         ("E", "est"),
         ("EUR", "euro"),
         ("Hz", "hertz"),
-        ("JJOO", "jocs olímpics")
+        ("JJOO", "jocs olímpics"),
         ("L", "litre"),
         ("M", "mega"),
         ("MB", "megabyte"),
@@ -107,7 +107,7 @@ abbreviations_ca = [
         ("BOE", "boe"),
         ("CD", "ce de"),
         ("CEIP", "ceip"),
-        ("CNI", "ce ena i")
+        ("CNI", "ce ena i"),
         ("CPU", "ce pe u"),
         ("CUP", "cup"),
         ("CV", "ce ve"),
