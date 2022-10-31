@@ -2,62 +2,51 @@ import os
 
 from trainer import Trainer, TrainerArgs
 
-from TTS.config.shared_configs import BaseAudioConfig
 from TTS.tts.configs.shared_configs import BaseDatasetConfig
-from TTS.tts.configs.tacotron2_config import Tacotron2Config
+from TTS.tts.configs.vits_config import VitsConfig
 from TTS.tts.datasets import load_tts_samples
-from TTS.tts.models.tacotron2 import Tacotron2
+from TTS.tts.models.vits import Vits, VitsAudioConfig
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio import AudioProcessor
 
 output_path = os.path.dirname(os.path.abspath(__file__))
-
-# init configs
 database_root = '/home/user/PAE-YOV/databases/'
 dataset_config = BaseDatasetConfig(
-    formatter="pae_upc", meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female_normalized')
+    formatter="pae_upc", meta_file_train="metadata.txt", path=os.path.join(database_root, 'ca_es_female_22050')
 )
 
-audio_config = BaseAudioConfig(
+audio_config = VitsAudioConfig(
     sample_rate=22050,
-    do_trim_silence=True,
-    trim_db=60.0,
-    signal_norm=False,
-    mel_fmin=0.0,
-    mel_fmax=8000,
-    spec_gain=1.0,
-    log_func="np.log",
-    ref_level_db=20,
-    preemphasis=0.0,
+    win_length=1024,
+    hop_length=256,
+    num_mels=80,
+    mel_fmin=0,
+    mel_fmax=None
 )
 
-# This is the config that is saved for the future use
-config = Tacotron2Config(
+config = VitsConfig(
     audio=audio_config,
-    batch_size=64,
+    run_name="vits_pae_upc",
+    batch_size=32,
     eval_batch_size=16,
-    num_loader_workers=3,
-    num_eval_loader_workers=3,
+    batch_group_size=5,
+    num_loader_workers=4,
+    num_eval_loader_workers=4,
     run_eval=True,
     test_delay_epochs=-1,
-    r=6,
-    gradual_training=[[0, 6, 64], [10000, 4, 32], [50000, 3, 32], [100000, 2, 32]],
-    double_decoder_consistency=True,
     epochs=1000,
-    text_cleaner="phoneme_cleaners",
+    text_cleaner="catalan_cleaners",
     use_phonemes=True,
     phoneme_language="ca",
     phoneme_cache_path=os.path.join(output_path, "phoneme_cache"),
-    precompute_num_workers=6,
+    compute_input_seq_cache=True,
     print_step=25,
     print_eval=True,
-    mixed_precision=False,
+    mixed_precision=True,
     output_path=output_path,
     datasets=[dataset_config],
+    cudnn_benchmark=False,
 )
-
-# init audio processor
-ap = AudioProcessor(**config.audio.to_dict())
 
 # INITIALIZE THE AUDIO PROCESSOR
 # Audio processor is used for feature extraction and audio I/O.
@@ -66,7 +55,7 @@ ap = AudioProcessor.init_from_config(config)
 
 # INITIALIZE THE TOKENIZER
 # Tokenizer is used to convert text to sequences of token IDs.
-# If characters are not defined in the config, default characters are passed to the config
+# config is updated with the default characters if not defined in the config.
 tokenizer, config = TTSTokenizer.init_from_config(config)
 
 # LOAD DATA SAMPLES
@@ -81,14 +70,16 @@ train_samples, eval_samples = load_tts_samples(
     eval_split_size=config.eval_split_size,
 )
 
-# INITIALIZE THE MODEL
-# Models take a config object and a speaker manager as input
-# Config defines the details of the model like the number of layers, the size of the embedding, etc.
-# Speaker manager is used by multi-speaker models.
-model = Tacotron2(config, ap, tokenizer, speaker_manager=None)
+# init model
+model = Vits(config, ap, tokenizer, speaker_manager=None)
 
 # init the trainer and 🚀
 trainer = Trainer(
-    TrainerArgs(), config, output_path, model=model, train_samples=train_samples, eval_samples=eval_samples
+    TrainerArgs(),
+    config,
+    output_path,
+    model=model,
+    train_samples=train_samples,
+    eval_samples=eval_samples,
 )
 trainer.fit()

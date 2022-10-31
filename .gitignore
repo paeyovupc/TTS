@@ -137,8 +137,9 @@ VCTK-Corpus-removed-silence/*
 # ignore training logs
 trainer_*_log.txt
 
-# ignore training folders
+# ignore training folders (VITS is a special boi)
 run*/
+vits_*/
 
 # files used internally fro dev, test etc.
 tests/outputs/*
