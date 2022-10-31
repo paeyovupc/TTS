@@ -1,7 +1,0 @@
-# Phoneme cache
-phoneme-cache/
-
-# Training folders with models and configs
-run*/
-vits_pae_upc-*/
-
