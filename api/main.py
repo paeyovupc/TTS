@@ -9,18 +9,9 @@ import aiofiles
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel
 
 from TTS.utils.manage import ModelManager
 from TTS.utils.synthesizer import Synthesizer
-
-
-class TTSModel(BaseModel):
-    language: str
-    dataset: str
-    model_name: str
-    text: str
-
 
 # update in-use models to the specified released models.
 model_path = None
@@ -50,51 +41,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def write_json(new_data, action, user=None):
+    jsonFile = open(users_config_path, "r")
+    data = json.load(jsonFile)
+    jsonFile.close()
 
-@app.get("/")
-async def root():
-    # TODO: login!
-    return {"message": "Hello World"}
+    if action == 'new_user':
+        data["users"].update(new_data)
+    elif action == 'new_model':
+        data["users"][user]["models"] = new_data
 
-
-@app.get("/all_models")
-async def get_all_models():
-    return models_list
-
-
-@app.post("/tts")
-async def get_tts_audio(tts: TTSModel):
-    print(" > Dataset: {}".format(tts.dataset))
-    print(" > Language: {}".format(tts.language))
-    print(" > Model name: {}".format(tts.model_name))
-    print(" > Text: {}".format(tts.text))
-
-    # TODO: check TTS/bin/synthesize for other options
-    model_name = "tts_models/{}/{}/{}".format(tts.language, tts.dataset, tts.model_name)
-    model_path, config_path, model_item = manager.download_model(model_name)
-    vocoder_name = model_item["default_vocoder"]
-    vocoder_path, vocoder_config_path, _ = manager.download_model(vocoder_name)
-    
-    # load models
-    synthesizer = Synthesizer(
-        tts_checkpoint=model_path,
-        tts_config_path=config_path,
-        tts_speakers_file=speakers_file_path,
-        tts_languages_file=None,
-        vocoder_checkpoint=vocoder_path,
-        vocoder_config=vocoder_config_path,
-        encoder_checkpoint="",
-        encoder_config="",
-        use_cuda=False,
-    )
-
-    # synthesize text
-    wavs = synthesizer.tts(tts.text)
-    tmp_dir = tempfile._get_default_tempdir()
-    output_path = os.path.join(tmp_dir, datetime.now().strftime("tts_%m_%d_%Y_%H_%M_%S.wav"))
-    synthesizer.save_wav(wavs, output_path)
-    return FileResponse(output_path)
-
+    jsonFile = open(users_config_path, "w+")
+    jsonFile.write(json.dumps(data, indent=2))
+    jsonFile.close()
 
 def zip_files(db_name: str):
     db_path = os.path.join(databases_path, db_name)
@@ -137,11 +96,83 @@ async def unzip_files(file: UploadFile, user_name: str):
     
     # Create symlink /users/user_name/db_name <--> /databases/db_name
     os.symlink(db_path, os.path.join(databases_path, db_name))
+
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
+
+# TODO: add personalized models
+@app.get("/all_models")
+async def get_all_models():
+    return models_list
+
+@app.get("/users-models")
+async def get_users_models(user: str):
+    f = open(users_config_path)
+    data = json.load(f)
+    return data['users'][user]['models']
+
+@app.post("/login")
+async def login(username: str = Form(), password: str = Form()):
+    f = open(users_config_path)
+    data = json.load(f)
+    response = 'OK' if username in data['users'] and data['users'][username]['password'] == password else 'ERROR'
+    return {'message': response}
+
+@app.post("/create-user")
+async def create_user(username: str = Form(), password: str = Form()):
+    new_user = {
+        username: {
+            "password": password,
+            "models": []
+        }
+    }
+    write_json(new_user, 'new_user')
+    os.mkdir(os.path.join(users_path, username))
+    return {'message': 'OK'}
+
+
+@app.post("/tts")
+async def get_tts_audio(
+    language: str = Form(),
+    dataset: str = Form(),
+    model_name: str = Form(),
+    text: str = Form(),
+    file: UploadFile | None = None
+    ):
+    print(" > Dataset: {}".format(dataset))
+    print(" > Language: {}".format(language))
+    print(" > Model name: {}".format(model_name))
+    print(" > Text: {}".format(text))
+
+    # TODO: check TTS/bin/synthesize for other options
+    model_name = "tts_models/{}/{}/{}".format(language, dataset, model_name)
+    model_path, config_path, model_item = manager.download_model(model_name)
+    vocoder_name = model_item["default_vocoder"]
+    vocoder_path, vocoder_config_path, _ = manager.download_model(vocoder_name)
     
+    # load models
+    synthesizer = Synthesizer(
+        tts_checkpoint=model_path,
+        tts_config_path=config_path,
+        tts_speakers_file=speakers_file_path,
+        tts_languages_file=None,
+        vocoder_checkpoint=vocoder_path,
+        vocoder_config=vocoder_config_path,
+        encoder_checkpoint="",
+        encoder_config="",
+        use_cuda=False,
+    )
+
+    # synthesize text
+    wavs = synthesizer.tts(text)
+    tmp_dir = tempfile._get_default_tempdir()
+    output_path = os.path.join(tmp_dir, datetime.now().strftime("tts_%m_%d_%Y_%H_%M_%S.wav"))
+    synthesizer.save_wav(wavs, output_path)
+    return FileResponse(output_path)  
 
 @app.post("/get-database")
 async def get_helena_database(name: str):
-    print(name)
     return zip_files(name)
     
 @app.post("/new-db-multispeaker")
