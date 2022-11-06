@@ -24,6 +24,7 @@ users_config_path = os.path.dirname(__file__).replace('.', 'users_config.json')
 users_path = os.path.dirname(__file__).split('api')[0].replace("TTS", "users")
 databases_path = os.path.dirname(__file__).split('api')[0].replace("TTS", "databases")
 models_config_path = os.path.join(os.path.dirname(__file__).replace("api", "TTS"), ".models.json")
+
 manager = ModelManager(models_config_path)
 models_list = [
     {"language": model.split("/")[1], "dataset": model.split("/")[2], "model_name": model.split("/")[3]}
@@ -97,20 +98,28 @@ async def unzip_files(file: UploadFile, user_name: str):
     # Create symlink /users/user_name/db_name <--> /databases/db_name
     os.symlink(db_path, os.path.join(databases_path, db_name))
 
+def get_users_models_list(user: str):
+    f = open(users_config_path)
+    data = json.load(f)
+    return data['users'][user]['models']
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
-# TODO: add personalized models
 @app.get("/all_models")
-async def get_all_models():
-    return models_list
+async def get_all_models(user: str):
+    user_models = [
+        {"language": model.split("/")[1], "dataset": model.split("/")[2], "model_name": model.split("/")[3]}
+        for model in get_users_models_list(user)
+        if model.startswith("tts_models")
+    ]
+    user_models.extend(models_list)
+    return user_models
 
 @app.get("/users-models")
 async def get_users_models(user: str):
-    f = open(users_config_path)
-    data = json.load(f)
-    return data['users'][user]['models']
+    return get_users_models_list(user)
 
 @app.post("/login")
 async def login(username: str = Form(), password: str = Form()):
