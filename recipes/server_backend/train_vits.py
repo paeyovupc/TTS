@@ -92,5 +92,4 @@ trainer = Trainer(
     eval_samples=eval_samples,
 )
 
-exit(0)
 trainer.fit()
