@@ -1,12 +1,16 @@
-import os
 import io
 import json
+import os
+import subprocess
 import tempfile
-from datetime import datetime
 import zipfile
-import aiofiles
+from datetime import datetime
+from math import floor
+from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form
+import aiofiles
+import soundfile as sf
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
@@ -102,6 +106,52 @@ def get_users_models_list(user: str):
     f = open(users_config_path)
     data = json.load(f)
     return data['users'][user]['models']
+
+
+def train_model(db_path_str: str, language: str):
+    # Get some useful information about the database
+    db_path = Path(db_path_str)
+    user = db_path.parent.name
+    wav_file = next(db_path.glob('*.wav'), None)
+
+    if wav_file is None:
+        return None
+
+    # Database/model info
+    db_name = db_path.name
+    db_path = db_path_str
+    sample_rate = sf.info(wav_file).samplerate
+    user = db_path.parent.name
+    out_path = Path(users_path) / user / db_name
+
+    # Add model training to queue
+    # INFO: change `tsp python3 args ...` to `tsp sh -c "python3 args ..."` in
+    # case the command does not work
+    # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
+    train_script = '/home/user/TTS/recipes/server_backend/train_vits.py'
+    command = [
+        'tsp', 'python3', train_script, db_path, language, sample_rate,
+        out_path
+    ]
+    envvars = {'CUDA_VISIBLE_DEVICES': '0'}
+
+    proc = subprocess.Popen(command,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            env=envvars)
+    db_id = proc.stdout.readline().decode('ascii').strip()
+
+    proc = subprocess.Popen(['tsp', '-s', db_id],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    db_status = proc.stdout.readline().decode('ascii').strip()
+
+    # Save new model to json
+    write_json({f"tts_models/{language}/{db_name}/vits": db_id},
+               'new_model',
+               user=user)
+
+    return db_status
 
 
 @app.get("/")
