@@ -17,11 +17,13 @@ from fastapi.responses import FileResponse, Response
 from TTS.utils.manage import ModelManager
 from TTS.utils.synthesizer import Synthesizer
 
+tmp_dir = tempfile._get_default_tempdir()
 root_path = os.path.dirname(__file__).split("TTS")[0]
 users_config_path = os.path.join(root_path, "TTS", "api", "users_config.json")
 users_path = os.path.join(root_path, "users")
 databases_path = os.path.join(root_path, "databases")
 models_config_path = os.path.join(root_path, "TTS", "TTS", ".models.json")
+train_script = os.path.join(root_path, "TTS", "recipes", "server_backend", "train_vits.py")
 
 manager = ModelManager(models_config_path)
 models_list = [
@@ -49,7 +51,7 @@ def write_json(new_data, action, user=None):
     if action == 'new_user':
         data["users"].update(new_data)
     elif action == 'new_model':
-        data["users"][user]["models"] = new_data
+        data["users"][user]["models"].update(new_data)
 
     jsonFile = open(users_config_path, "w+")
     jsonFile.write(json.dumps(data, indent=2))
@@ -100,9 +102,10 @@ async def unzip_files(file: UploadFile, user_name: str):
 
     # Create symlink /users/user_name/db_name <--> /databases/db_name
     os.symlink(db_path, os.path.join(databases_path, db_name))
+    return db_path
 
 
-def get_users_models_list(user: str):
+def get_users_models_dict(user: str):
     f = open(users_config_path)
     data = json.load(f)
     return data['users'][user]['models']
@@ -111,7 +114,6 @@ def get_users_models_list(user: str):
 def train_model(db_path_str: str, language: str):
     # Get some useful information about the database
     db_path = Path(db_path_str)
-    user = db_path.parent.name
     wav_file = next(db_path.glob('*.wav'), None)
 
     if wav_file is None:
@@ -119,16 +121,15 @@ def train_model(db_path_str: str, language: str):
 
     # Database/model info
     db_name = db_path.name
+    user = db_path.parent.name
     db_path = db_path_str
     sample_rate = sf.info(wav_file).samplerate
-    user = db_path.parent.name
     out_path = Path(users_path) / user / db_name
 
     # Add model training to queue
     # INFO: change `tsp python3 args ...` to `tsp sh -c "python3 args ..."` in
     # case the command does not work
     # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
-    train_script = '/home/user/TTS/recipes/server_backend/train_vits.py'
     command = [
         'tsp', 'python3', train_script, db_path, language, sample_rate,
         out_path
@@ -147,11 +148,17 @@ def train_model(db_path_str: str, language: str):
     db_status = proc.stdout.readline().decode('ascii').strip()
 
     # Save new model to json
-    write_json({f"tts_models/{language}/{db_name}/vits": db_id},
+    model_name = f"tts_models/{language}/{db_name}/vits"
+    write_json({model_name: db_id},
                'new_model',
                user=user)
 
-    return db_status
+    return {
+        model_name: {
+        'status': db_status,
+        'progress': '0'
+        }
+    }
 
 
 def check_user_models(user: str):
@@ -176,15 +183,10 @@ def check_user_models(user: str):
         }
     }]
     """
-    config_file = open('/home/luki/PAE/PAE-YOV/TTS/api/users_config.json', 'r')
-    json_data = json.load(config_file)
-    config_file.close()
-
-    user_models = json_data["users"][user]["models"]
+    user_models = get_users_models_dict(user)
 
     result = []
-    for model in user_models:
-        model_name, model_id = next(iter(model.items()))
+    for model_name, model_id in user_models.items():
         foo = {}
         foo[model_name] = {"status": "queued", "progress": "0"}
 
@@ -227,11 +229,11 @@ async def root():
     return {"message": "Hello World"}
 
 
-@app.get("/all_models")
+@app.get("/all-models")
 async def get_all_models(user: str):
     user_models = [
         {"language": model.split("/")[1], "dataset": model.split("/")[2], "model_name": model.split("/")[3]}
-        for model in get_users_models_list(user)
+        for model in get_users_models_dict(user).keys()
         if model.startswith("tts_models")
     ]
     user_models.extend(models_list)
@@ -265,6 +267,7 @@ async def get_tts_audio(
     dataset: str = Form(),
     model_name: str = Form(),
     text: str = Form(),
+    multispeaker_lang: str = Form(),
     file: UploadFile = None,
 ):
     model_path = None
@@ -277,6 +280,7 @@ async def get_tts_audio(
     print(" > Language: {}".format(language))
     print(" > Model name: {}".format(model_name))
     print(" > Text: {}".format(text))
+    print(" > Multispeaker language: {}".format(multispeaker_lang))
 
     # TODO: check TTS/bin/synthesize for other options
     model_name = "tts_models/{}/{}/{}".format(language, dataset, model_name)
@@ -298,9 +302,18 @@ async def get_tts_audio(
         use_cuda=False,
     )
 
+    if file:
+        speaker_wav = os.path.join(
+            tmp_dir, 
+            datetime.now().strftime("speaker_wav_%m_%d_%Y_%H_%M_%S.wav")
+        )
+        # Async writing temp wav file to disk
+        async with aiofiles.open(speaker_wav, 'wb') as out_file:
+            content = await file.read()  # async read
+            await out_file.write(content)  # async write
+
     # synthesize text
-    wavs = synthesizer.tts(text)
-    tmp_dir = tempfile._get_default_tempdir()
+    wavs = synthesizer.tts(text, speaker_wav=speaker_wav, language_name=multispeaker_lang)
     output_path = os.path.join(tmp_dir, datetime.now().strftime("tts_%m_%d_%Y_%H_%M_%S.wav"))
     synthesizer.save_wav(wavs, output_path)
     return FileResponse(output_path)
@@ -311,7 +324,12 @@ async def get_helena_database(name: str):
     return zip_files(name)
 
 
-@app.post("/new-db-multispeaker")
-async def new_db_multispeaker(file: UploadFile = File(), user: str = Form()):
-    await unzip_files(file, user)
-    return {'message': 'Database created!'}
+@app.post("/train-model")
+async def train_new_model(
+    file: UploadFile = File(), 
+    user: str = Form(), 
+    language: str = Form()
+):
+    db_path = await unzip_files(file, user)
+    model_status = train_model(db_path, language)
+    return model_status
