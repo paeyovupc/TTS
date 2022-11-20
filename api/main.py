@@ -1,12 +1,16 @@
-import os
 import io
 import json
+import os
+import subprocess
 import tempfile
-from datetime import datetime
 import zipfile
-import aiofiles
+from datetime import datetime
+from math import floor
+from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form
+import aiofiles
+import soundfile as sf
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 
@@ -104,6 +108,120 @@ def get_users_models_list(user: str):
     return data['users'][user]['models']
 
 
+def train_model(db_path_str: str, language: str):
+    # Get some useful information about the database
+    db_path = Path(db_path_str)
+    user = db_path.parent.name
+    wav_file = next(db_path.glob('*.wav'), None)
+
+    if wav_file is None:
+        return None
+
+    # Database/model info
+    db_name = db_path.name
+    db_path = db_path_str
+    sample_rate = sf.info(wav_file).samplerate
+    user = db_path.parent.name
+    out_path = Path(users_path) / user / db_name
+
+    # Add model training to queue
+    # INFO: change `tsp python3 args ...` to `tsp sh -c "python3 args ..."` in
+    # case the command does not work
+    # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
+    train_script = '/home/user/TTS/recipes/server_backend/train_vits.py'
+    command = [
+        'tsp', 'python3', train_script, db_path, language, sample_rate,
+        out_path
+    ]
+    envvars = {'CUDA_VISIBLE_DEVICES': '0'}
+
+    proc = subprocess.Popen(command,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            env=envvars)
+    db_id = proc.stdout.readline().decode('ascii').strip()
+
+    proc = subprocess.Popen(['tsp', '-s', db_id],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE)
+    db_status = proc.stdout.readline().decode('ascii').strip()
+
+    # Save new model to json
+    write_json({f"tts_models/{language}/{db_name}/vits": db_id},
+               'new_model',
+               user=user)
+
+    return db_status
+
+
+def check_user_models(user: str):
+    """
+    Checks the status of the given user models, and returns the data in the
+    following format:
+    
+    [{
+        "<model_name_1>": {
+            "status": "queued",
+            "progress": "0"
+        }
+    }, {
+        "<model_name_2>": {
+            "status": "running",
+            "progress": "31"
+        }
+    }, {
+        "<model_name_3>": {
+            "status": "finished",
+            "progress": "100"
+        }
+    }]
+    """
+    config_file = open('/home/luki/PAE/PAE-YOV/TTS/api/users_config.json', 'r')
+    json_data = json.load(config_file)
+    config_file.close()
+
+    user_models = json_data["users"][user]["models"]
+
+    result = []
+    for model in user_models:
+        model_name, model_id = next(iter(model.items()))
+        foo = {}
+        foo[model_name] = {"status": "queued", "progress": "0"}
+
+        proc = subprocess.Popen(['tsp', '-s', str(model_id)],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        foo[model_name]["status"] = proc.stdout.readline().decode(
+            'ascii').strip()
+
+        if foo[model_name]["status"] == "queued":
+            foo[model_name]["progress"] = "0"
+
+        elif foo[model_name]["status"] == "finished":
+            foo[model_name]["progress"] = "100"
+
+        elif foo[model_name]["status"] == "running":
+            # This oneliner gets the last "EPOCH: N/M" occurence on the log
+            # file of the training and only returns the "N/M" part
+            proc = subprocess.Popen(
+                f'tsp -o {model_id} | xargs grep -oE "EPOCH: [0-9]+/[0-9]+" | cut -d " " -f2 | tail -n 1',
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True)
+            perc_fraction = proc.stdout.readline().decode(
+                'ascii').strip().split('/')
+            if len(perc_fraction) == 2:
+                foo[model_name]["progress"] = str(floor(100 * int(perc_fraction[0]) / int(perc_fraction[1])))
+            else:
+                foo[model_name]["progress"] = '0'
+
+        else:
+            foo[model_name]["status"] = "error"
+
+        result.append(foo)
+
+    return result
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -122,7 +240,7 @@ async def get_all_models(user: str):
 
 @app.get("/users-models")
 async def get_users_models(user: str):
-    return get_users_models_list(user)
+    return check_user_models(user)
 
 
 @app.post("/login")
