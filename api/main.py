@@ -86,8 +86,9 @@ def zip_files(db_name: str):
 
 async def unzip_files(file: UploadFile, user_name: str):
     db_name = file.filename.split('.')[0]
-    zip_path = os.path.join(users_path, user_name, file.filename)
-    db_path = os.path.join(users_path, user_name, db_name)
+    user_path = os.path.join(users_path, user_name)
+    zip_path = os.path.join(user_path, file.filename)
+    db_path = os.path.join(user_path, db_name)
 
     # Async writing zip file to disk
     async with aiofiles.open(zip_path, 'wb') as out_file:
@@ -96,7 +97,7 @@ async def unzip_files(file: UploadFile, user_name: str):
 
     # Unzip files and delete zip
     zip = zipfile.ZipFile(zip_path)
-    zip.extractall(db_path)
+    zip.extractall(user_path)
     zip.close()
     os.remove(zip_path)
 
@@ -275,6 +276,7 @@ async def get_tts_audio(
     speakers_file_path = None
     vocoder_path = None
     vocoder_config_path = None
+    speaker_wav = None
 
     print(" > Dataset: {}".format(dataset))
     print(" > Language: {}".format(language))
