@@ -132,9 +132,13 @@ def train_model(db_path_str: str, language: str):
     # case the command does not work
     # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
     command = [
-        'tsp', 'python3', train_script, db_path, language, sample_rate,
-        out_path
+        str(a) for a in [
+            'tsp', 'python3', train_script, db_path, language, sample_rate,
+            out_path
+        ]
     ]
+    # Make sure that everything is a string
+    
     envvars = {'CUDA_VISIBLE_DEVICES': '0'}
 
     proc = subprocess.Popen(command,
