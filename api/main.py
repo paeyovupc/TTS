@@ -101,8 +101,8 @@ async def unzip_files(file: UploadFile, user_name: str):
     zip.close()
     os.remove(zip_path)
 
-    # Create symlink /users/user_name/db_name <--> /databases/db_name
-    os.symlink(db_path, os.path.join(databases_path, db_name))
+    # Create symlink /users/user_name/db_name <--> /databases/user_name__db_name
+    os.symlink(db_path, os.path.join(databases_path, '{}__{}'.format(user_name, db_name)))
     return db_path
 
 
@@ -329,6 +329,10 @@ async def get_tts_audio(
 async def get_helena_database(name: str):
     return zip_files(name)
 
+@app.get("/check-database-name")
+async def check_database_name(username: str, db_name: str):
+    response = 'ERROR' if os.path.exists(os.path.join(users_path, username, db_name)) else 'OK'
+    return {'check': response}
 
 @app.post("/train-model")
 async def train_new_model(
