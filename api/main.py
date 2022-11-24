@@ -260,7 +260,7 @@ async def login(username: str = Form(), password: str = Form()):
 
 @app.post("/create-user")
 async def create_user(username: str = Form(), password: str = Form()):
-    new_user = {username: {"password": password, "models": []}}
+    new_user = {username: {"password": password, "models": {}}}
     write_json(new_user, 'new_user')
     os.mkdir(os.path.join(users_path, username))
     return {'message': 'OK'}
