@@ -202,7 +202,17 @@ def check_user_models(user: str):
             foo[model_name]["progress"] = "0"
 
         elif foo[model_name]["status"] == "finished":
-            foo[model_name]["progress"] = "100"
+            proc = subprocess.Popen(
+                f'tsp | grep -E "^{model_id}" | tr -s ' ' | cut -d ' ' -f 4',
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True)
+            exit_code = proc.stdout.readline().decode('ascii').strip()
+
+            if exit_code != '0':
+                foo[model_name]["status"] = "error"
+            else:
+                foo[model_name]["progress"] = "100"
 
         elif foo[model_name]["status"] == "running":
             # This oneliner gets the last "EPOCH: N/M" occurence on the log
