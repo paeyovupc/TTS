@@ -100,9 +100,6 @@ async def unzip_files(file: UploadFile, user_name: str):
     zip.extractall(user_path)
     zip.close()
     os.remove(zip_path)
-
-    # Create symlink /users/user_name/db_name <--> /databases/user_name__db_name
-    os.symlink(db_path, os.path.join(databases_path, '{}__{}'.format(user_name, db_name)))
     return db_path
 
 
