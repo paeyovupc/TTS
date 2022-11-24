@@ -35,7 +35,7 @@ audio_config = VitsAudioConfig(
 
 config = VitsConfig(
     audio=audio_config,
-    run_name="vits",
+    run_name="vits_" + args.DB_PATH.split('/')[-1],
     batch_size=32,
     eval_batch_size=16,
     batch_group_size=5,
@@ -44,7 +44,7 @@ config = VitsConfig(
     run_eval=True,
     test_delay_epochs=-1,
     epochs=1000,
-    text_cleaner="phoneme_cleaners",
+    text_cleaner="catalan_cleaners",
     use_phonemes=True,
     phoneme_language=args.LANGUAGE,
     phoneme_cache_path=os.path.join(output_path, "phoneme_cache"),
