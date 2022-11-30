@@ -1,4 +1,5 @@
 import io
+import itertools
 import json
 import os
 import subprocess
@@ -213,6 +214,36 @@ def check_user_models(user: str):
                 foo[model_name]["status"] = "error"
             else:
                 foo[model_name]["progress"] = "100"
+
+                model_parameters = model_name.split('/')
+                assert len(model_parameters) == 4
+
+                _, language, dataset, model = model_parameters
+                save_directory = Path(
+                    os.path.expanduser(
+                        f'~/.local/share/tts/tts_models--{language}--{user}__{dataset}--{model}'
+                    ))
+                if not save_directory.exists():
+                    os.makedirs(save_directory)
+
+                    user_model_path = Path(
+                        os.path.join(users_path, user, dataset))
+
+                    # NOTE: since the save directory for the training has the
+                    # date, and some random numbers at the end we are going to
+                    # do some glob magic. And it's BAD
+
+                    # Get the last model, the one with a higher number in it's name
+                    models = user_model_path.glob(f'{model}_{dataset}*/*.pth')
+                    model_src = sorted([m for m in models],
+                                       key=lambda x: int("".join(
+                                           filter(str.isdigit, x.name))))[0]
+                    config_src = itertools.islice(
+                        user_model_path.glob(
+                            f'{model}_{dataset}*/config.json'), 1)
+
+                    os.symlink(model_src, save_directory / 'model_file.pth')
+                    os.symlink(config_src, save_directory / 'config.json')
 
         elif foo[model_name]["status"] == "running":
             # This oneliner gets the last "EPOCH: N/M" occurence on the log
