@@ -104,6 +104,12 @@ async def unzip_files(file: UploadFile, user_name: str):
     return db_path
 
 
+def username_exists(username: str):
+    f = open(users_config_path)
+    data = json.load(f)
+    return True  if username in data['users'] else False
+
+
 def get_users_models_dict(user: str):
     f = open(users_config_path)
     data = json.load(f)
@@ -298,6 +304,10 @@ async def login(username: str = Form(), password: str = Form()):
 
 @app.post("/create-user")
 async def create_user(username: str = Form(), password: str = Form()):
+    user_exists = username_exists(username)
+    if user_exists:
+        return {'message': 'Username already taken. Please choose another username.'}
+    
     new_user = {username: {"password": password, "models": {}}}
     write_json(new_user, 'new_user')
     os.mkdir(os.path.join(users_path, username))
