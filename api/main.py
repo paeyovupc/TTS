@@ -321,6 +321,7 @@ async def get_tts_audio(
     model_name: str = Form(),
     text: str = Form(),
     multispeaker_lang: str = Form(),
+    user: str = Form(),
     file: UploadFile = None,
 ):
     model_path = None
@@ -336,12 +337,19 @@ async def get_tts_audio(
     print(" > Text: {}".format(text))
     print(" > Multispeaker language: {}".format(multispeaker_lang))
 
-    # TODO: check TTS/bin/synthesize for other options
-    model_name = "tts_models/{}/{}/{}".format(language, dataset, model_name)
-    model_path, config_path, model_item = manager.download_model(model_name)
-    vocoder_name = model_item["default_vocoder"]
-    if vocoder_name:
-        vocoder_path, vocoder_config_path, _ = manager.download_model(vocoder_name)
+    model = "tts_models/{}/{}/{}".format(language, dataset, model_name)
+    if model in get_users_models_dict(user):
+        model_directory = Path(
+                    os.path.expanduser(
+                        f'~/.local/share/tts/tts_models--{language}--{user}__{dataset}--{model_name}'
+                    ))
+        model_path = model_directory / 'model_file.pth'
+        config_path = model_directory / 'config.json'
+    else:
+        model_path, config_path, model_item = manager.download_model(model)
+        vocoder_name = model_item["default_vocoder"]
+        if vocoder_name:
+            vocoder_path, vocoder_config_path, _ = manager.download_model(vocoder_name)
 
     # load models
     synthesizer = Synthesizer(
