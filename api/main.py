@@ -210,7 +210,7 @@ def check_user_models(user: str):
 
         elif foo[model_name]["status"] == "finished":
             proc = subprocess.Popen(
-                f'tsp | grep -E "^{model_id}" | tr -s ' ' | cut -d ' ' -f 4',
+                f'tsp | grep -E "^{model_id}" | tr -s " " | cut -d " " -f 4',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 shell=True)
@@ -230,8 +230,6 @@ def check_user_models(user: str):
                         f'~/.local/share/tts/tts_models--{language}--{user}__{dataset}--{model}'
                     ))
                 if not save_directory.exists():
-                    os.makedirs(save_directory)
-
                     user_model_path = Path(
                         os.path.join(users_path, user, dataset))
 
@@ -241,15 +239,20 @@ def check_user_models(user: str):
 
                     # Get the last model, the one with a higher number in it's name
                     models = user_model_path.glob(f'{model}_{dataset}*/*.pth')
-                    model_src = sorted([m for m in models],
-                                       key=lambda x: int("".join(
-                                           filter(str.isdigit, x.name))))[0]
-                    config_src = itertools.islice(
-                        user_model_path.glob(
-                            f'{model}_{dataset}*/config.json'), 1)
+                    numbered_models = []
+                    for m in models:
+                        # Get only the files with a number in their name,
+                        # we need it for sorting
+                        if any(c.isdigit() for c in m.name):
+                            numbered_models.append(m)
 
-                    os.symlink(model_src, save_directory / 'model_file.pth')
+                    model_src = sorted(numbered_models, key=lambda x: int("".join(filter(str.isdigit, x.name))))[0]
+
+                    config_src = [f for f in user_model_path.glob(f'{model}_{dataset}*/config.json')][0]
+
+                    os.makedirs(save_directory)
                     os.symlink(config_src, save_directory / 'config.json')
+                    os.symlink(model_src, save_directory / 'model_file.pth')
 
         elif foo[model_name]["status"] == "running":
             # This oneliner gets the last "EPOCH: N/M" occurence on the log
@@ -331,6 +334,8 @@ async def get_tts_audio(
     vocoder_config_path = None
     speaker_wav = None
 
+    print('entering method get_tts_audio()')
+
     print(" > Dataset: {}".format(dataset))
     print(" > Language: {}".format(language))
     print(" > Model name: {}".format(model_name))
@@ -350,6 +355,9 @@ async def get_tts_audio(
         vocoder_name = model_item["default_vocoder"]
         if vocoder_name:
             vocoder_path, vocoder_config_path, _ = manager.download_model(vocoder_name)
+
+    print(f'model_path: {model_path}')
+    print(f'config_path: {config_path}')
 
     # load models
     synthesizer = Synthesizer(
