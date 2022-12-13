@@ -382,6 +382,11 @@ async def get_tts_audio(
             content = await file.read()  # async read
             await out_file.write(content)  # async write
 
+    # Add termination to the sentence
+    LEGAL_ENDINGS = '.,:;?!'
+    if len(text) > 0 and text[-1] not in LEGAL_ENDINGS:
+        text += '.'
+
     # synthesize text
     wavs = synthesizer.tts(text, speaker_wav=speaker_wav, language_name=multispeaker_lang)
     output_path = os.path.join(tmp_dir, datetime.now().strftime("tts_%m_%d_%Y_%H_%M_%S.wav"))
