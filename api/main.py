@@ -31,6 +31,10 @@ python_executable = os.path.join(venv_dir, "python3")
 
 dotenv_path = join(root_path, '.env')
 load_dotenv(dotenv_path)
+ENVVARS = {'CUDA_VISIBLE_DEVICES': '0',
+           'TMPDIR':os.environ.get('TMPDIR'),
+           'TS_SOCKET':os.environ.get('TS_SOCKET'),
+           'TS_SAVELIST':os.environ.get('TS_SAVELIST')}
 
 manager = ModelManager(models_config_path)
 models_list = [
@@ -150,20 +154,16 @@ def train_model(db_path_str: str, language: str, voice_type: str):
     # Make sure that everything is a string
 
     # Setting the enviroment variables for cuda and task spooler
-    envvars = {'CUDA_VISIBLE_DEVICES': '0',
-               'TMPDIR':os.environ.get('TMPDIR'),
-               'TS_SOCKET':os.environ.get('TS_SOCKET'),
-               'TS_SAVELIST':os.environ.get('TS_SAVELIST')}
-
     proc = subprocess.Popen(command,
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
-                            env=envvars)
+                            env=ENVVARS)
     db_id = proc.stdout.readline().decode('ascii').strip()
 
     proc = subprocess.Popen(['tsp', '-s', db_id],
                             stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE)
+                            stderr=subprocess.PIPE,
+                            env=ENVVARS)
     db_status = proc.stdout.readline().decode('ascii').strip()
 
     # Save new model to json
@@ -211,7 +211,8 @@ def check_user_models(user: str):
 
         proc = subprocess.Popen(['tsp', '-s', str(model_id)],
                                 stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                                stderr=subprocess.PIPE,
+                                env=ENVVARS)
         foo[model_name]["status"] = proc.stdout.readline().decode(
             'ascii').strip()
 
@@ -223,7 +224,8 @@ def check_user_models(user: str):
                 f'tsp | grep -E "^{model_id}" | tr -s " " | cut -d " " -f 4',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                shell=True)
+                shell=True,
+                env=ENVVARS)
             exit_code = proc.stdout.readline().decode('ascii').strip()
 
             if exit_code != '0':
@@ -271,7 +273,8 @@ def check_user_models(user: str):
                 f'tsp -o {model_id} | xargs grep -oE "EPOCH: [0-9]+/[0-9]+" | cut -d " " -f2 | tail -n 1',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                shell=True)
+                shell=True,
+                env=ENVVARS)
             perc_fraction = proc.stdout.readline().decode(
                 'ascii').strip().split('/')
             if len(perc_fraction) == 2:
