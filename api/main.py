@@ -26,6 +26,7 @@ users_path = os.path.join(root_path, "users")
 databases_path = os.path.join(root_path, "databases")
 models_config_path = os.path.join(root_path, "TTS", "TTS", ".models.json")
 train_script = os.path.join(root_path, "TTS", "recipes", "server_backend", "train_vits.py")
+train_finetune_script = os.path.join(root_path, "TTS", "recipes", "server_backend", "train_vits_finetune.py")
 venv_dir = os.path.join(root_path, ".yov-venv", "bin")
 python_executable = os.path.join(venv_dir, "python3")
 
@@ -35,6 +36,8 @@ ENVVARS = {'CUDA_VISIBLE_DEVICES': '0',
            'TMPDIR':os.environ.get('TMPDIR'),
            'TS_SOCKET':os.environ.get('TS_SOCKET'),
            'TS_SAVELIST':os.environ.get('TS_SAVELIST')}
+FINETUNE_VALID_VOICE_TYPES = {'female', 'male'}
+FINETUNE_VALID_LANGUAGES = {'ca', 'es'}
 
 manager = ModelManager(models_config_path)
 models_list = [
@@ -144,13 +147,25 @@ def train_model(db_path_str: str, language: str, voice_type: str):
     # Add model training to queue
     # INFO: change `tsp python3 args ...` to `tsp sh -c "python3 args ..."` in
     # case the command does not work
-    # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
-    command = [
-        str(a) for a in [
-            'tsp', python_executable, train_script, db_path, language, sample_rate,
-            out_path
+    command = []
+    if voice_type in FINETUNE_VALID_VOICE_TYPES and language in FINETUNE_VALID_LANGUAGES:
+        # Finetune
+        # usage: train_vits_finetune.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH VOICE_TYPE
+        command = [
+            str(a) for a in [
+                'tsp', python_executable, train_finetune_script, db_path, language, sample_rate, out_path, voice_type
+            ]
         ]
-    ]
+    else:
+        # Regular training
+        # usage: train_vits.py DB_PATH LANGUAGE SAMPLE_RATE OUT_PATH
+        command = [
+            str(a) for a in [
+                'tsp', python_executable, train_script, db_path, language, sample_rate,
+                out_path
+            ]
+        ]
+
     # Make sure that everything is a string
 
     # Setting the enviroment variables for cuda and task spooler
