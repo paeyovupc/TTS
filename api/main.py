@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
+from dotenv import load_dotenv
 from math import floor
 from pathlib import Path
 
@@ -27,6 +28,9 @@ models_config_path = os.path.join(root_path, "TTS", "TTS", ".models.json")
 train_script = os.path.join(root_path, "TTS", "recipes", "server_backend", "train_vits.py")
 venv_dir = os.path.join(root_path, ".yov-venv", "bin")
 python_executable = os.path.join(venv_dir, "python3")
+
+dotenv_path = join(root_path, '.env')
+load_dotenv(dotenv_path)
 
 manager = ModelManager(models_config_path)
 models_list = [
@@ -144,8 +148,12 @@ def train_model(db_path_str: str, language: str, voice_type: str):
         ]
     ]
     # Make sure that everything is a string
-    
-    envvars = {'CUDA_VISIBLE_DEVICES': '0'}
+
+    # Setting the enviroment variables for cuda and task spooler
+    envvars = {'CUDA_VISIBLE_DEVICES': '0',
+               'TMPDIR':os.environ.get('TMPDIR'),
+               'TS_SOCKET':os.environ.get('TS_SOCKET'),
+               'TS_SAVELIST':os.environ.get('TS_SAVELIST')}
 
     proc = subprocess.Popen(command,
                             stdout=subprocess.PIPE,
