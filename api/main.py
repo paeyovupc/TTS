@@ -118,7 +118,7 @@ def get_users_models_dict(user: str):
     return data['users'][user]['models']
 
 
-def train_model(db_path_str: str, language: str):
+def train_model(db_path_str: str, language: str, voice_type: str):
     # Get some useful information about the database
     db_path = Path(db_path_str)
     wav_file = next(db_path.glob('*.wav'), None)
@@ -409,8 +409,9 @@ async def check_database_name(username: str, db_name: str):
 async def train_new_model(
     file: UploadFile = File(), 
     user: str = Form(), 
-    language: str = Form()
+    language: str = Form(),
+    voice_type: str = Form()
 ):
     db_path = await unzip_files(file, user)
-    model_status = train_model(db_path, language)
+    model_status = train_model(db_path, language, voice_type)
     return model_status
