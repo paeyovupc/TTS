@@ -30,7 +30,7 @@ train_finetune_script = os.path.join(root_path, "TTS", "recipes", "server_backen
 venv_dir = os.path.join(root_path, ".yov-venv", "bin")
 python_executable = os.path.join(venv_dir, "python3")
 
-dotenv_path = join(root_path, '.env')
+dotenv_path = os.path.join(root_path, '.env')
 load_dotenv(dotenv_path)
 ENVVARS = {'CUDA_VISIBLE_DEVICES': '0',
            'TMPDIR':os.environ.get('TMPDIR'),
