@@ -2,16 +2,16 @@ import io
 import itertools
 import json
 import os
-import subprocess
 import tempfile
 import zipfile
 from datetime import datetime
-from dotenv import load_dotenv
 from math import floor
 from pathlib import Path
+from subprocess import check_output
 
 import aiofiles
 import soundfile as sf
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
@@ -30,12 +30,26 @@ train_finetune_script = os.path.join(root_path, "TTS", "recipes", "server_backen
 venv_dir = os.path.join(root_path, ".yov-venv", "bin")
 python_executable = os.path.join(venv_dir, "python3")
 
+# NOTE: not the best place to put a method, but i need it for setup hehe
+def expandvars_fully(envvar: str) -> str:
+    prev = None
+    while prev != envvar:
+        prev = envvar
+        envvar = os.path.expandvars(envvar)
+
+    return envvar
+
 dotenv_path = os.path.join(root_path, '.env')
 load_dotenv(dotenv_path)
-ENVVARS = {'CUDA_VISIBLE_DEVICES': '0',
-           'TMPDIR':os.environ.get('TMPDIR'),
-           'TS_SOCKET':os.environ.get('TS_SOCKET'),
-           'TS_SAVELIST':os.environ.get('TS_SAVELIST')}
+ENVVARS = {
+    'CUDA_VISIBLE_DEVICES': '0',
+    'PAE_DIR':expandvars_fully(os.environ.get('PAE_DIR')),
+    'TMPDIR':expandvars_fully(os.environ.get('TMPDIR')),
+    'TS_SOCKET':expandvars_fully(os.environ.get('TS_SOCKET')),
+    'TS_SAVELIST':expandvars_fully(os.environ.get('TS_SAVELIST'))
+}
+print(f'Environment variables for spawned processes: {ENVVARS}')
+
 FINETUNE_VALID_VOICE_TYPES = {'female', 'male'}
 FINETUNE_VALID_LANGUAGES = {'ca', 'es'}
 
@@ -165,21 +179,11 @@ def train_model(db_path_str: str, language: str, voice_type: str):
                 out_path
             ]
         ]
-
     # Make sure that everything is a string
 
     # Setting the enviroment variables for cuda and task spooler
-    proc = subprocess.Popen(command,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            env=ENVVARS)
-    db_id = proc.stdout.readline().decode('ascii').strip()
-
-    proc = subprocess.Popen(['tsp', '-s', db_id],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            env=ENVVARS)
-    db_status = proc.stdout.readline().decode('ascii').strip()
+    db_id = check_output(command, env=ENVVARS).decode('ascii').strip()
+    db_status = check_output(['tsp', '-s', db_id], env=ENVVARS).decode('ascii').strip()
 
     # Save new model to json
     model_name = f"tts_models/{language}/{db_name}/vits"
@@ -221,27 +225,16 @@ def check_user_models(user: str):
 
     result = []
     for model_name, model_id in user_models.items():
+        # Naming variables foo, what an original boy
         foo = {}
         foo[model_name] = {"status": "queued", "progress": "0"}
-
-        proc = subprocess.Popen(['tsp', '-s', str(model_id)],
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                env=ENVVARS)
-        foo[model_name]["status"] = proc.stdout.readline().decode(
-            'ascii').strip()
+        foo[model_name]["status"] = check_output(['tsp', '-s', str(model_id)], env=ENVVARS).decode('ascii').strip()
 
         if foo[model_name]["status"] == "queued":
             foo[model_name]["progress"] = "0"
 
         elif foo[model_name]["status"] == "finished":
-            proc = subprocess.Popen(
-                f'tsp | grep -E "^{model_id}" | tr -s " " | cut -d " " -f 4',
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=True,
-                env=ENVVARS)
-            exit_code = proc.stdout.readline().decode('ascii').strip()
+            exit_code = check_output(f'tsp | grep -E "^{model_id}" | tr -s " " | cut -d " " -f 4', shell=True, env=ENVVARS).decode('ascii').strip()
 
             if exit_code != '0':
                 foo[model_name]["status"] = "error"
@@ -284,14 +277,9 @@ def check_user_models(user: str):
         elif foo[model_name]["status"] == "running":
             # This oneliner gets the last "EPOCH: N/M" occurence on the log
             # file of the training and only returns the "N/M" part
-            proc = subprocess.Popen(
-                f'tsp -o {model_id} | xargs grep -oE "EPOCH: [0-9]+/[0-9]+" | cut -d " " -f2 | tail -n 1',
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=True,
-                env=ENVVARS)
-            perc_fraction = proc.stdout.readline().decode(
-                'ascii').strip().split('/')
+            perc_fraction = check_output(f'tsp -o {model_id} | xargs grep -oE "EPOCH: [0-9]+/[0-9]+" | cut -d " " -f2 | tail -n 1',
+                                         shell=True,
+                                         env=ENVVARS).decode('ascii').strip().split('/')
             if len(perc_fraction) == 2:
                 foo[model_name]["progress"] = str(floor(100 * int(perc_fraction[0]) / int(perc_fraction[1])))
             else:
