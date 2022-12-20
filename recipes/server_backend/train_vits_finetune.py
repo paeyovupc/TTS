@@ -49,9 +49,9 @@ audio_config = VitsAudioConfig(
 
 config = VitsConfig(
     audio=audio_config,
-    run_name='vits_' + args.DB_PATH.split('/')[-1],
-    batch_size=16,
-    eval_batch_size=8,
+    run_name='vits_' + args.DB_PATH.split('/')[-1] + '_finetune',
+    batch_size=32,
+    eval_batch_size=16,
     batch_group_size=5,
     num_loader_workers=4,
     num_eval_loader_workers=4,
