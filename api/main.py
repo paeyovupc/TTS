@@ -30,6 +30,13 @@ train_finetune_script = os.path.join(root_path, "TTS", "recipes", "server_backen
 venv_dir = os.path.join(root_path, ".yov-venv", "bin")
 python_executable = os.path.join(venv_dir, "python3")
 
+# Yes, I'm hardcoding the non valid databases surely this will end up fine...
+GLOBAL_DATABASES = [
+    'helena_cat', 'upc_ca_ona', 'upc_ca_pau', 'ljspeech', 'vctk', 'ca_es_female',
+    'recordingsCarlosdePablo_finetune', 'upc_es_antonio', 'upc_es_mariajose',
+    'multi-dataset'
+]
+
 # NOTE: not the best place to put a method, but i need it for setup hehe
 def expandvars_fully(envvar: str) -> str:
     prev = None
@@ -416,7 +423,13 @@ async def get_helena_database(name: str):
 
 @app.get("/check-database-name")
 async def check_database_name(username: str, db_name: str):
-    response = 'ERROR' if os.path.exists(os.path.join(users_path, username, db_name)) else 'OK'
+    if os.path.exists(os.path.join(users_path, username, db_name)):
+        response = 'ERROR'
+    elif db_name in GLOBAL_DATABASES:
+        response = 'ERROR'
+    else:
+        response = 'OK'
+
     return {'check': response}
 
 @app.post("/train-model")
