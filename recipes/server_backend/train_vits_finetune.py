@@ -10,7 +10,7 @@ from TTS.tts.models.vits import Vits, VitsAudioConfig
 from TTS.tts.utils.text.tokenizer import TTSTokenizer
 from TTS.utils.audio import AudioProcessor
 
-MODELS_PATH = os.path.join(os.environ.get('HOME'), '.local', 'share', 'tts')
+MODELS_PATH = os.path.expanduser('~/.local/share/tts')
 RESTORE_PATH_MAP = {
     'ca': {
         'female': os.path.join(MODELS_PATH, 'tts_models--ca--upc_ca_ona--vits', 'model_file.pth'),
